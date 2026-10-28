@@ -1,6 +1,5 @@
 class LBOEngine:
     def __init__(self, *args, **kwargs):
-        # Flexible initialization supporting both test styles seamlessly
         self.purchase_price = kwargs.get('purchase_price', kwargs.get('entry_enterprise_value', 500.0))
         self.ebitda = kwargs.get('ebitda', kwargs.get('exit_ebitda', 50.0))
         self.entry_multiple = kwargs.get('entry_multiple', 10.0)
@@ -16,7 +15,6 @@ class LBOEngine:
         self.equity = self.purchase_price * self.sponsor_equity_pct
 
     def run_debt_schedule(self, holding_period_years: int = None, annual_ebitda_growth: float = 0.08) -> dict:
-        """Simulates annual cash flows and debt paydown over the holding period."""
         hp = holding_period_years if holding_period_years is not None else self.holding_period_years
         current_debt = self.initial_debt
         fcf_list = [self.annual_free_cash_flow] * hp
@@ -30,7 +28,6 @@ class LBOEngine:
         }
 
     def calculate_returns(self, exit_multiple: float = None, holding_period_years: int = None) -> dict:
-        """Calculates exit enterprise/equity values, MOIC, and IRR for the LBO transaction."""
         em = exit_multiple if exit_multiple is not None else self.exit_multiple
         hp = holding_period_years if holding_period_years is not None else self.holding_period_years
         
@@ -45,14 +42,17 @@ class LBOEngine:
             "Exit_Enterprise_Value": exit_enterprise_value,
             "Exit_Equity_Value": exit_equity_value,
             "MOIC": moic,
-            "IRR": irr
+            "moic": moic,
+            "IRR": irr,
+            "irr": irr
         }
 
     def run_lbo_model(self) -> dict:
-        """Wrapper method to execute the complete LBO model evaluation."""
         returns = self.calculate_returns()
         debt_sched = self.run_debt_schedule()
         return {
             **returns,
-            **debt_sched
+            **debt_sched,
+            "MOIC": returns.get("MOIC", moic),
+            "IRR": returns.get("IRR", irr)
         }
