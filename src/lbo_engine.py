@@ -53,6 +53,6 @@ class LBOEngine:
         return {
             **returns,
             **debt_sched,
-            "MOIC": returns.get("MOIC", moic),
-            "IRR": returns.get("IRR", irr)
+            "MOIC": returns.get("MOIC", 0.0),
+            "IRR": returns.get("IRR", 0.0)
         }
