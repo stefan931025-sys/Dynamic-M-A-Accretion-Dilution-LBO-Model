@@ -55,3 +55,22 @@ def test_returns_metrics():
     assert "MOIC" in metrics
     assert isinstance(metrics["MOIC"], float)
     assert metrics["MOIC"] > 0.0
+
+
+def test_lbo_return_metrics():
+    """Validates MOIC and IRR calculations for an LBO using detailed entry/exit parameters."""
+    lbo = LBOEngine(
+        entry_enterprise_value=1_000_000_000,
+        initial_debt=600_000_000,
+        sponsor_equity_pct=0.40,
+        annual_free_cash_flow=80_000_000,
+        exit_multiple=10.0,
+        exit_ebitda=120_000_000,
+        holding_period_years=5
+    )
+    result = lbo.run_lbo_model()
+    
+    assert "MOIC" in result
+    assert "IRR" in result
+    assert result["MOIC"] >= 1.0
+    assert result["IRR"] >= 0.0
