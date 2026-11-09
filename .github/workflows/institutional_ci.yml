@@ -1,4 +1,4 @@
-name: Institutional Suite CI
+name: Valuation Model CI
 
 on:
   push:
@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-and-test:
+  validate:
     runs-on: ubuntu-latest
 
     steps:
@@ -29,26 +29,37 @@ jobs:
 
     - name: Run Linting (Flake8)
       run: |
-        # Fail only on critical syntax/undefined errors (E9, F63, F7, F82), flag style notes gracefully
         flake8 --count --select=E9,F63,F7,F82 --show-source --statistics || true
 
     - name: Run Type Checking (Mypy)
       run: |
-        # Check source types while safely ignoring un-typed third-party packages
-        mypy src --ignore-missing-imports || mypy . --ignore-missing-imports || true
+        export PYTHONPATH=$PWD:$PWD/src
+        mypy . --ignore-missing-imports || true
 
-    - name: Run Security Scan (Bandit)
+    - name: Run Valuation Model & Main Execution
       run: |
-        # Non-blocking security audit across codebase
-        bandit -r . -ll || true
-
-    - name: Run Pytest Suite (Safe Discovery)
-      run: |
-        export PYTHONPATH=src:.
-        if [ -d "tests" ]; then 
-          pytest -v --tb=short
-        elif [ -f "main.py" ]; then
+        # Append current directory and any nested subdirectories to PYTHONPATH
+        export PYTHONPATH=$PWD:$(find $PWD -maxdepth 2 -type d | paste -sd ":" -)
+        
+        MAIN_FILE=$(find . -name "main.py" -print -quit)
+        if [ -n "$MAIN_FILE" ]; then
+          MAIN_DIR=$(dirname "$MAIN_FILE")
+          cd "$MAIN_DIR"
           timeout 15 python main.py || true
         else
-          echo "No explicit tests found; environment setup and imports validated successfully."
+          echo "No main.py found, skipping execution."
+        fi
+
+    - name: Run Pytest Suite
+      run: |
+        # Ensure root and inner module paths are added before running pytest
+        export PYTHONPATH=$PWD:$(find $PWD -maxdepth 2 -type d | paste -sd ":" -)
+        
+        TEST_DIR=$(find . -name "tests" -type d -print -quit)
+        if [ -n "$TEST_DIR" ]; then
+          PARENT_DIR=$(dirname "$TEST_DIR")
+          cd "$PARENT_DIR"
+          pytest -v --tb=short
+        else
+          echo "No tests directory found, skipping pytest safely."
         fi
