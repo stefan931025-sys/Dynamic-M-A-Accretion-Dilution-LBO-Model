@@ -33,18 +33,17 @@ jobs:
 
     - name: Run Type Checking (Mypy)
       run: |
-        export PYTHONPATH=$PWD:$PWD/src
+        export PYTHONPATH=$GITHUB_WORKSPACE:$GITHUB_WORKSPACE/src
         mypy . --ignore-missing-imports || true
 
     - name: Run Valuation Model & Main Execution
       run: |
-        # Append current directory and any nested subdirectories to PYTHONPATH
-        export PYTHONPATH=$PWD:$(find $PWD -maxdepth 2 -type d | paste -sd ":" -)
-        
+        # Locate main.py and execute inside its parent directory
         MAIN_FILE=$(find . -name "main.py" -print -quit)
         if [ -n "$MAIN_FILE" ]; then
           MAIN_DIR=$(dirname "$MAIN_FILE")
           cd "$MAIN_DIR"
+          export PYTHONPATH=.:src:..
           timeout 15 python main.py || true
         else
           echo "No main.py found, skipping execution."
@@ -52,14 +51,13 @@ jobs:
 
     - name: Run Pytest Suite
       run: |
-        # Ensure root and inner module paths are added before running pytest
-        export PYTHONPATH=$PWD:$(find $PWD -maxdepth 2 -type d | paste -sd ":" -)
-        
+        # Find directory containing tests
         TEST_DIR=$(find . -name "tests" -type d -print -quit)
         if [ -n "$TEST_DIR" ]; then
-          PARENT_DIR=$(dirname "$TEST_DIR")
-          cd "$PARENT_DIR"
-          pytest -v --tb=short
+          TARGET_DIR=$(dirname "$TEST_DIR")
+          cd "$TARGET_DIR"
+          # Explicitly set pythonpath inside pytest CLI execution
+          pytest -o pythonpath=". src .." -v --tb=short
         else
           echo "No tests directory found, skipping pytest safely."
         fi
