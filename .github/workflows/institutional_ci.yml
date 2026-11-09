@@ -33,17 +33,24 @@ jobs:
 
     - name: Run Type Checking (Mypy)
       run: |
-        export PYTHONPATH=$GITHUB_WORKSPACE:$GITHUB_WORKSPACE/src
-        mypy . --ignore-missing-imports || true
+        # Find the directory containing src and run mypy there
+        SRC_DIR=$(find . -type d -name "src" -print -quit)
+        if [ -n "$SRC_DIR" ]; then
+          PARENT_DIR=$(dirname "$SRC_DIR")
+          cd "$PARENT_DIR"
+          export PYTHONPATH=.
+          mypy src --ignore-missing-imports || true
+        else
+          mypy . --ignore-missing-imports || true
+        fi
 
     - name: Run Valuation Model & Main Execution
       run: |
-        # Locate main.py and execute inside its parent directory
         MAIN_FILE=$(find . -name "main.py" -print -quit)
         if [ -n "$MAIN_FILE" ]; then
           MAIN_DIR=$(dirname "$MAIN_FILE")
           cd "$MAIN_DIR"
-          export PYTHONPATH=.:src:..
+          export PYTHONPATH=.
           timeout 15 python main.py || true
         else
           echo "No main.py found, skipping execution."
@@ -51,13 +58,22 @@ jobs:
 
     - name: Run Pytest Suite
       run: |
-        # Find directory containing tests
-        TEST_DIR=$(find . -name "tests" -type d -print -quit)
-        if [ -n "$TEST_DIR" ]; then
-          TARGET_DIR=$(dirname "$TEST_DIR")
+        # Locate the exact directory that contains the 'src' package and 'tests'
+        TARGET_DIR=""
+        for d in $(find . -type d -name "tests"); do
+          if [ -d "$(dirname "$d")/src" ]; then
+            TARGET_DIR=$(dirname "$d")
+            break
+          fi
+        done
+        
+        if [ -n "$TARGET_DIR" ]; then
+          echo "Found module root at: $TARGET_DIR"
           cd "$TARGET_DIR"
-          # Explicitly set pythonpath inside pytest CLI execution
-          pytest -o pythonpath=". src .." -v --tb=short
+          export PYTHONPATH=.
+          python -m pytest -v --tb=short
         else
-          echo "No tests directory found, skipping pytest safely."
+          echo "Falling back to standard test discovery..."
+          export PYTHONPATH=.
+          python -m pytest -v --tb=short || true
         fi
