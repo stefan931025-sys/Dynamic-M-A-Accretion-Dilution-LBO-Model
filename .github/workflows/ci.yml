@@ -25,7 +25,6 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-        pip install -e . || pip install .
         pip install pytest pytest-cov flake8 mypy bandit numpy pandas scipy statsmodels yfinance
 
     - name: Run Linting & Quality Checks
