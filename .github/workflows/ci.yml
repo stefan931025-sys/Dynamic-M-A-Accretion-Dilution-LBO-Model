@@ -25,31 +25,27 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-        pip install -e . || pip install . || true
+        pip install -e . || pip install .
         pip install pytest pytest-cov flake8 mypy bandit numpy pandas scipy statsmodels yfinance
 
     - name: Run Linting & Quality Checks
       run: |
         flake8 --count --select=E9,F63,F7,F82 --show-source --statistics || true
-        mypy src --ignore-missing-imports || mypy . --ignore-missing-imports || true
-        bandit -r . -ll || true
+        mypy src --ignore-missing-imports || mypy --ignore-missing-imports || true
+        bandit -r -ll || true
 
     - name: Run Execution & Test Suite
       run: |
+        export PYTHONPATH=$PWD
+        
         # Locate and execute main script safely regardless of nesting depth
         MAIN_FILE=$(find . -name "main.py" -print -quit)
         if [ -n "$MAIN_FILE" ]; then
           MAIN_DIR=$(dirname "$MAIN_FILE")
           cd "$MAIN_DIR"
-          export PYTHONPATH=$PWD
           timeout 15 python main.py || true
+          cd - > /dev/null
         fi
 
-        # Find test directory and run pytest relative to the module root
-        SRC_DIR=$(find . -type d -name "src" -o -name "core" | head -n 1)
-        if [ -n "$SRC_DIR" ]; then
-          MODULE_ROOT=$(dirname "$SRC_DIR")
-          cd "$MODULE_ROOT"
-          export PYTHONPATH=$PWD
-          python -m pytest -v --tb=short || true
-        fi
+        # Run pytest from the repository root with PYTHONPATH set
+        python -m pytest -v --tb=short || true
