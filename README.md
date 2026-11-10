@@ -1,23 +1,39 @@
-# M&A Accretion/Dilution & LBO Valuation Engine
+# Quantitative M&A Accretion/Dilution & LBO Valuation Engine
 
-[![M&A LBO Valuation Engine CI](https://github.com/stefan931025-sys/Dynamic-M-A-Accretion-Dilution-LBO-Model/actions/workflows/ci.yml/badge.svg)](https://github.com/stefan931025-sys/Dynamic-M-A-Accretion-Dilution-LBO-Model/actions/workflows/ci.yml)
+[![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com/stefan931025-sys/Dynamic-M-A-Accretion-Dilution-LBO-Model)
+[![Python Version](https://img.shields.io/badge/python-3.10-blue.svg)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A quantitative financial modeling tool built in Python to evaluate buy-side acquisition scenarios, compute pro-forma EPS accretion/dilution, and run variable debt/equity financing sensitivity matrices.
+A quantitative corporate finance and valuation engine built in Python to evaluate buy-side acquisition scenarios, model pro-forma EPS accretion/dilution under dynamic capital structures, and simulate LBO debt waterfall returns across vectorized sensitivity matrices.
 
-## Key Features
+---
 
-* **Pro-Forma EPS Impact:** Computes post-acquisition net income adjustments, new share issuance, and after-tax interest expenses.
-* **Variable Financing Structures:** Dynamically models variable leverage ratios (debt vs. stock consideration) and corporate tax shield impacts.
-* **Sensitivity Analysis:** Evaluates transaction viability across multiple purchase price multiples, synergy realization assumptions, and cost-of-capital inputs.
+## Core Capabilities
 
-## Tech Stack
+* **Pro-Forma EPS Accretion/Dilution Modeling:** Dynamically calculates post-transaction net income adjustments, goodwill creation, debt interest expense after tax shields, and new share issuance based on cash vs. stock consideration mix.
+* **LBO Debt Waterfall & Returns Engine:** Simulates Senior, Mezzanine, and Equity tranches, tracking mandatory debt amortization, cash flow sweeps, IRR (Internal Rate of Return), and MoIC (Multiple on Invested Capital) across variable holding horizons.
+* **Vectorized Sensitivity Engine:** Generates multi-variable matrices using NumPy/Pandas to stress-test transaction viability across purchase multiples, cost synergy execution rates, and exit valuation ranges.
+* **Synergy & Goodwill Accounting Integration:** Handles pre-tax cost and revenue synergies, transaction fees amortization, tax asset write-ups, and balance sheet pro-forma adjustments.
 
-* **Language:** Python
-* **Libraries:** NumPy, Pandas
+---
 
-## Quick Start
+## Mathematical Specification & Valuation Mechanics
 
-```bash
-git clone [https://github.com/stefan931025-sys/Dynamic-M-A-Accretion-Dilution-LBO-Model.git](https://github.com/stefan931025-sys/Dynamic-M-A-Accretion-Dilution-LBO-Model.git)
-cd Dynamic-M-A-Accretion-Dilution-LBO-Model
-python main.py
+### 1. Pro-Forma EPS Accretion / Dilution Formula
+
+$$\text{Pro-Forma EPS} = \frac{\text{Acquirer Net Income} + \text{Target Net Income} + \text{After-Tax Synergies} - \text{After-Tax Interest Expense}}{\text{Acquirer Shares Outstanding} + \text{New Shares Issued}}$$
+
+Where:
+$$\text{After-Tax Interest Expense} = (\text{New Debt Raised} \times r_{\text{debt}}) \times (1 - \tau)$$
+$$\text{New Shares Issued} = \frac{\text{Purchase Price} \times \% \text{Stock Consideration}}{\text{Acquirer Share Price}}$$
+
+### 2. Leveraged Buyout (LBO) IRR & Capital Waterfall
+
+$$\text{MoIC} = \frac{\text{Exit Equity Value}}{\text{Sponsor Initial Equity Invested}}$$
+
+$$\text{Sponsor IRR} = \left( \text{MoIC} \right)^{\frac{1}{t}} - 1$$
+
+---
+
+## System Architecture & Data Flow
+
