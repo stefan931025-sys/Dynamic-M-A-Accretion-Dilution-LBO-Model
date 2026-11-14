@@ -1,90 +1,126 @@
-from __future__ import annotations
+#!/usr/bin/env python3
+"""
+Repository Structural and AST Auditor (`repo_auditor.py`)
+Enforces structural hygiene, AST-based code patterns, and compliance standards
+across the multi-repository quantitative development lifecycle.
+"""
 
-import os
-import re
+import ast
 import sys
-import logging
+import os
+from pathlib import Path
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
-logger = logging.getLogger("CorporateFinanceRepoAuditor")
+# Define mandatory directories and files for structural compliance
+MANDATORY_DIRS = ['src', 'tests', '.github/workflows']
+MANDATORY_FILES = ['README.md', 'requirements.txt', '.gitignore']
 
-class CorporateFinanceRepoAuditor:
-    def __init__(self, root_dir: str = "."):
-        self.root_dir = root_dir
-        self.excluded_dirs = {".git", "__pycache__", "venv", ".pytest_cache", "data", "models"}
 
-    def audit_repository(self):
-        """Walks through the corporate finance repository, auditing and flagging valuation or code hygiene risks."""
-        logger.info(f"Starting M&A/LBO repository audit across: {os.path.abspath(self.root_dir)}")
+class ASTCodeAuditor(ast.NodeVisitor):
+    """AST-based static analyzer to enforce safe coding practices and quantitative rigor."""
+    
+    def __init__(self, filepath):
+        self.filepath = filepath
+        self.errors = []
+        self.warnings = []
+
+    def visit_Call(self, node):
+        # 1. Detect unsafe builtins
+        if isinstance(node.func, ast.Name):
+            if node.func.id == 'eval':
+                self.errors.append(f"{self.filepath}:{node.lineno}: Security violation: Use of 'eval()' is strictly prohibited.")
+            elif node.func.id == 'exec':
+                self.errors.append(f"{self.filepath}:{node.lineno}: Security violation: Use of 'exec()' is strictly prohibited.")
         
-        flagged_count = 0
-        for dirpath, dirnames, filenames in os.walk(self.root_dir):
-            dirnames[:] = [d for d in dirnames if d not in self.excluded_dirs]
-            
-            for file in filenames:
-                if file.endswith(".py") and file != "repo_auditor.py":
-                    file_path = os.path.join(dirpath, file)
-                    if self._audit_and_fix_file(file_path):
-                        flagged_count += 1
+        # 2. Detect unseeded random number generation calls
+        if isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Name):
+            if node.func.value.id in ('random', 'np', 'numpy') and 'rand' in node.func.attr:
+                self.warnings.append(f"{self.filepath}:{node.lineno}: Quantitative warning: Unseeded random call '{node.func.value.id}.{node.func.attr}()' detected. Use a seeded Generator for reproducibility.")
 
-        logger.info(f"Audit complete. Total files inspected/corrected: {flagged_count}")
+        self.generic_visit(node)
 
-    def _audit_and_fix_file(self, file_path: str) -> bool:
-        """Inspects file content for financial calculation safety and code standards."""
+    def visit_Compare(self, node):
+        # 3. Detect floating-point direct equality checks (Eq / NotEq)
+        for op in node.ops:
+            if isinstance(op, (ast.Eq, ast.NotEq)):
+                self.warnings.append(f"{self.filepath}:{node.lineno}: Quantitative warning: Direct float equality/inequality comparison detected. Use math.isclose() or np.isclose().")
+        self.generic_visit(node)
+
+    def visit_FunctionDef(self, node):
+        # Check if public functions have docstrings
+        if not ast.get_docstring(node) and not node.name.startswith('_'):
+            self.warnings.append(f"{self.filepath}:{node.lineno}: Style warning: Public function '{node.name}' lacks a docstring.")
+        self.generic_visit(node)
+
+
+def audit_repository(root_dir='.'):
+    root = Path(root_dir)
+    print(f"[*] Starting repository audit for: {root.resolve()}")
+    
+    failed = False
+    
+    # 1. Check Mandatory Directory Structure
+    print("[*] Auditing directory structure...")
+    for d in MANDATORY_DIRS:
+        dir_path = root / d
+        if not dir_path.is_dir():
+            print(f"  [X] Missing mandatory directory: {d}/")
+            failed = True
+        else:
+            print(f"  [✓] Found directory: {d}/")
+
+    # 2. Check Mandatory Files
+    print("[*] Auditing mandatory configuration files...")
+    for f in MANDATORY_FILES:
+        file_path = root / f
+        if not file_path.is_file():
+            print(f"  [X] Missing mandatory file: {f}")
+            failed = True
+        else:
+            print(f"  [✓] Found file: {f}")
+
+    # 3. Run AST & Static Analysis on Python Files
+    print("[*] Running AST linting and static analysis on Python sources...")
+    python_files = list(root.glob('**/*.py'))
+    
+    # Exclude virtual environments or build artifacts
+    python_files = [p for p in python_files if not any(part.startswith('.') or part in ['venv', 'build', 'dist'] for part in p.parts)]
+
+    total_errors = 0
+    total_warnings = 0
+
+    for py_file in python_files:
         try:
-            with open(file_path, "r", encoding="utf-8") as f:
+            with open(py_file, 'r', encoding='utf-8') as f:
                 content = f.read()
+            tree = ast.parse(content, filename=str(py_file))
             
-            updated_content = content
+            auditor = ASTCodeAuditor(py_file)
+            auditor.visit(tree)
             
-            # 1. Check for potential division safety risks in financial formulas (e.g. share price, equity invested denominators)
-            if "/" in updated_content and any(term in updated_content for term in ["share_price", "equity_invested", "shares_outstanding"]) and "np.where" not in updated_content and "max(" not in updated_content:
-                logger.warning(f"Financial Safety Warning in {file_path}: Division involving key financial denominators detected without explicit zero-division guardrails.")
-
-            # 2. Ensure modern type annotations are supported
-            updated_content = self._ensure_future_imports(updated_content)
-            
-            # 3. Upgrade bare print statements to structured logging
-            updated_content = self._upgrade_prints_to_logging(updated_content)
-
-            if updated_content != content:
-                with open(file_path, "w", encoding="utf-8") as f:
-                    f.write(updated_content)
-                logger.info(f"Successfully sanitized and updated: {file_path}")
-                return True
+            for err in auditor.errors:
+                print(f"  [ERROR] {err}")
+                total_errors += 1
+            for warn in auditor.warnings:
+                print(f"  [WARNING] {warn}")
+                total_warnings += 1
                 
+        except SyntaxError as se:
+            print(f"  [SYNTAX ERROR] {py_file}:{se.lineno}: {se.msg}")
+            total_errors += 1
         except Exception as e:
-            logger.error(f"Error auditing {file_path}: {e}")
-        
-        return False
+            print(f"  [ERROR] Failed to parse {py_file}: {e}")
+            total_errors += 1
 
-    def _ensure_future_imports(self, content: str) -> str:
-        """Ensures type hinting compatibility."""
-        if "from __future__ import annotations" not in content and "def " in content:
-            lines = content.splitlines()
-            insert_idx = 0
-            for i, line in enumerate(lines):
-                if line.startswith("import ") or line.startswith("from "):
-                    insert_idx = i
-                    break
-            lines.insert(insert_idx, "from __future__ import annotations")
-            content = "\n".join(lines) + "\n"
-        return content
+    print(f"\n[*] Audit Summary: {total_errors} errors, {total_warnings} warnings found.")
 
-    def _upgrade_prints_to_logging(self, content: str) -> str:
-        """Ensures corporate finance valuation scripts use proper loggers for telemetry."""
-        if "print(" in content and "import logging" not in content:
-            lines = content.splitlines()
-            import_idx = 0
-            for i, line in enumerate(lines):
-                if line.startswith("import ") or line.startswith("from "):
-                    import_idx = i + 1
-            
-            logger_setup = "\nimport logging\nlogger = logging.getLogger(__name__)"
-            lines.insert(import_idx, logger_setup)
-            content = "\n".join(lines) + "\n"
-        return content
+    if failed or total_errors > 0:
+        print("[!] Repository audit FAILED. Please resolve structural or AST errors before building.")
+        sys.exit(1)
+    else:
+        print("[✓] Repository audit PASSED successfully. Codebase complies with governance standards.")
+        sys.exit(0)
 
-if __name__ == "__main__":
-    auditor = CorporateFinanceRepoAuditor()
-    auditor.audit_repository()
+
+if __name__ == '__main__':
+    target_directory = sys.argv[1] if len(sys.argv) > 1 else '.'
+    audit_repository(target_directory)
